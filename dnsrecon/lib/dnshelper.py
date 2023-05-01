@@ -443,19 +443,29 @@ class DnsHelper:
                             target = target + '.' + self._domain
                         else:
                             target = strip_last_dot(target)
+                        ns_name = name.to_text()
+                        if ns_name.count('.') == 0:
+                            ns_name = ns_name + '.' + self._domain
+                        else:
+                            ns_name = strip_last_dot(ns_name)
 
                         for type_, name_, addr_ in self.get_ip(target):
                             if type_ in ['A', 'AAAA']:
-                                print_status(f"\t NS {target} {addr_}")
+                                print_status(f"\t NS {ns_name} {target} {addr_} ")
                                 zone_records.append({'zone_server': ns_srv, 'type': 'NS',
-                                                     'target': target, 'address': addr_})
+                                                     'target': target, 'address': addr_, 'name': ns_name})
 
                 for (name, rdataset) in zone.iterate_rdatasets(dns.rdatatype.TXT):
                     for rdata in rdataset:
+                        txt_name = name.to_text()
+                        if txt_name.count('.') == 0:
+                            txt_name = txt_name + '.' + self._domain
+                        else:
+                            txt_name = strip_last_dot(txt_name)
                         s = "; ".join([string.decode() for string in rdata.strings])
-                        print_status(f"\t TXT {s}")
+                        print_status(f"\t TXT {txt_name} {s}")
                         zone_records.append({'zone_server': ns_srv, 'type': 'TXT',
-                                            'strings': s})
+                                            'strings': s, 'name': txt_name})
 
                 for (name, rdataset) in zone.iterate_rdatasets(dns.rdatatype.SPF):
                     for rdata in rdataset:
@@ -507,13 +517,21 @@ class DnsHelper:
                     for rdata in rdataset:
                         target = strip_last_dot(rdata.target.to_text())
 
-                        for type_, name_, addr_ in self.get_ip(target):
-                            if type_ in ['A', 'AAAA']:
-                                print_status(f"\t CNAME {fqdn_} {target} {addr_}")
-                                zone_records.append({'zone_server': ns_srv, 'type': 'CNAME',
-                                                     'name': fqdn_,
-                                                     'target': target,
-                                                     'address': addr_})
+                        ip_entries = self.get_ip(target)
+                        if ip_entries:
+                            for type_, name_, addr_ in ip_entries:
+                                if type_ in ['A', 'AAAA']:
+                                    print_status(f"\t CNAME {fqdn_} {target} {addr_}")
+                                    zone_records.append({'zone_server': ns_srv, 'type': 'CNAME',
+                                                         'name': fqdn_,
+                                                         'target': target,
+                                                         'address': addr_})
+                        else:
+                            print_status(f"\t CNAME {fqdn_} {target} None")
+                            zone_records.append({'zone_server': ns_srv, 'type': 'CNAME',
+                                                 'name': fqdn_,
+                                                 'target': target,
+                                                 'address': None})
 
                 for (name, rdataset) in zone.iterate_rdatasets(dns.rdatatype.SRV):
                     fqdn_ = str(name) + '.' + self._domain
